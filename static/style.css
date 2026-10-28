@@ -1,0 +1,15 @@
+.tab-btn {
+  @apply px-4 py-2 text-sm font-medium rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition duration-150;
+}
+.tab-btn.active {
+  @apply text-white bg-slate-800/80 shadow;
+}
+.form-label {
+  @apply block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5;
+}
+.form-input {
+  @apply w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition;
+}
+.btn-primary {
+  @apply px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-indigo-600/30 transition duration-150 flex items-center justify-center space-x-2;
+}

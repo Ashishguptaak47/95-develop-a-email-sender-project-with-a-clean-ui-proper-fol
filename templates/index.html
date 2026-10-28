@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CleanMail - Email Dispatcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25">
+          ✉️
+        </div>
+        <h1 class="font-semibold text-lg tracking-tight text-white">CleanMail</h1>
+        <span id="dryRunBadge" class="hidden text-xs font-medium px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">Dry-Run Mode</span>
+      </div>
+      <nav class="flex space-x-1">
+        <button onclick="switchTab('compose')" id="tab-compose" class="tab-btn active">Compose</button>
+        <button onclick="switchTab('batch')" id="tab-batch" class="tab-btn">Batch Campaign</button>
+        <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn">Outbox Logs</button>
+        <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn">SMTP Settings</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="max-w-6xl w-full mx-auto p-6 flex-1">
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Compose Tab -->
+    <section id="view-compose" class="tab-content">
+      <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-6 shadow-xl">
+        <div class="mb-6">
+          <h2 class="text-xl font-bold text-white">Compose Email</h2>
+          <p class="text-sm text-slate-400">Send formatted single dispatches with attachments</p>
+        </div>
+
+        <form id="singleSendForm" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Recipient Email</label>
+              <input type="email" name="recipient" required placeholder="client@example.com" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">Subject</label>
+              <input type="text" name="subject" required placeholder="Project Status Update" class="form-input" />
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Plain Text Message</label>
+            <textarea name="body_text" rows="5" required placeholder="Type your message here..." class="form-input font-mono text-sm"></textarea>
+          </div>
+
+          <div>
+            <label class="form-label flex justify-between">
+              <span>HTML Version (Optional)</span>
+              <button type="button" onclick="toggleHtmlHelp()" class="text-xs text-indigo-400 hover:underline">Template Help</button>
+            </label>
+            <textarea name="body_html" rows="4" placeholder="<p>Hello <b>World</b></p>" class="form-input font-mono text-sm"></textarea>
+          </div>
+
+          <div>
+            <label class="form-label">Attachments</label>
+            <input type="file" name="attachments" multiple class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer" />
+          </div>
+
+          <div class="pt-4 flex justify-end">
+            <button type="submit" id="sendSingleBtn" class="btn-primary">
+              <span id="sendSingleText">Send Email</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Batch Campaign Tab -->
+    <section id="view-batch" class="tab-content hidden">
+      <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-6 shadow-xl">
+        <div class="mb-6">
+          <h2 class="text-xl font-bold text-white">Batch Personalized Campaign</h2>
+          <p class="text-sm text-slate-400">Provide a JSON array of targets with replacement tags (e.g. {{name}})</p>
+        </div>
+
+        <form id="batchSendForm" class="space-y-4">
+          <div>
+            <label class="form-label">Recipients (JSON Format)</label>
+            <textarea id="batchRecipients" rows="5" class="form-input font-mono text-xs">
+[
+  {"email": "alice@example.com", "name": "Alice", "role": "Director"},
+  {"email": "bob@example.com", "name": "Bob", "role": "Manager"}
+]</textarea>
+          </div>
+
+          <div>
+            <label class="form-label">Subject Template</label>
+            <input type="text" id="batchSubject" required value="Hello {{name}}, update regarding {{role}}" class="form-input" />
+          </div>
+
+          <div>
+            <label class="form-label">Message Template</label>
+            <textarea id="batchBody" rows="5" required class="form-input font-mono text-sm">Hi {{name}},
+
+We wanted to share the latest updates with your team as the {{role}}.
+
+Best regards,
+CleanMail Team</textarea>
+          </div>
+
+          <div class="pt-4 flex justify-end">
+            <button type="submit" id="sendBatchBtn" class="btn-primary">
+              Start Batch Campaign
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Outbox Logs Tab -->
+    <section id="view-logs" class="tab-content hidden">
+      <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-6 shadow-xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-white">Outbox Logs</h2>
+            <p class="text-sm text-slate-400">Real-time status of outgoing communications</p>
+          </div>
+          <button onclick="loadLogs()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded transition">
+            Refresh
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="text-xs uppercase bg-slate-900 border-b border-slate-800 text-slate-400">
+              <tr>
+                <th class="px-4 py-3">Timestamp</th>
+                <th class="px-4 py-3">Recipient</th>
+                <th class="px-4 py-3">Subject</th>
+                <th class="px-4 py-3">Type</th>
+                <th class="px-4 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="5" class="text-center py-6 text-slate-500">Loading activity...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section id="view-settings" class="tab-content hidden">
+      <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-6 shadow-xl max-w-2xl mx-auto">
+        <div class="mb-6">
+          <h2 class="text-xl font-bold text-white">SMTP Server Settings</h2>
+          <p class="text-sm text-slate-400">Configure transport parameters or enable Dry-Run</p>
+        </div>
+
+        <form id="settingsForm" class="space-y-4">
+          <div class="p-4 rounded-lg bg-indigo-950/30 border border-indigo-900/50 flex items-center justify-between">
+            <div>
+              <p class="font-medium text-white text-sm">Simulation / Dry-Run Mode</p>
+              <p class="text-xs text-slate-400">Test full send flow without making network calls or requiring active SMTP</p>
+            </div>
+            <input type="checkbox" id="setDryRun" class="w-5 h-5 accent-indigo-500 rounded cursor-pointer" />
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="col-span-2">
+              <label class="form-label">SMTP Host</label>
+              <input type="text" id="setHost" class="form-input" required />
+            </div>
+            <div>
+              <label class="form-label">Port</label>
+              <input type="number" id="setPort" class="form-input" required />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="form-label">Sender Name</label>
+              <input type="text" id="setSenderName" class="form-input" required />
+            </div>
+            <div>
+              <label class="form-label">Sender Email</label>
+              <input type="email" id="setSenderEmail" class="form-input" required />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="form-label">Username</label>
+              <input type="text" id="setUser" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">Password</label>
+              <input type="password" id="setPass" placeholder="Leave blank to keep unchanged" class="form-input" />
+            </div>
+          </div>
+
+          <div class="flex space-x-6 py-2">
+            <label class="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer">
+              <input type="checkbox" id="setTls" class="w-4 h-4 accent-indigo-500 rounded" />
+              <span>Use STARTTLS</span>
+            </label>
+            <label class="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer">
+              <input type="checkbox" id="setSsl" class="w-4 h-4 accent-indigo-500 rounded" />
+              <span>Use Direct SSL</span>
+            </label>
+          </div>
+
+          <div class="pt-4 flex justify-end">
+            <button type="submit" class="btn-primary">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
